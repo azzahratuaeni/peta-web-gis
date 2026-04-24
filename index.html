@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/MALARIA_1.js"></script>
+        <script src="data/PNEUMONIA_2.js"></script>
+        <script src="data/TUBERKULOSIS_3.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: 'rgba(255, 255, 0, 1.00)',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: 'rgba(255, 255, 0, 1.00)',
+                fillOpacity: 1
+              });
+            }
+            highlightLayer.openPopup();
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[-12.823463232137144,117.64025596523949],[-7.964299231057028,124.3993699044582]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_OpenStreetMap_0');
+        map.getPane('pane_OpenStreetMap_0').style.zIndex = 400;
+        var layer_OpenStreetMap_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OpenStreetMap_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 18
+        });
+        layer_OpenStreetMap_0;
+        map.addLayer(layer_OpenStreetMap_0);
+        function pop_MALARIA_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_2'] !== null ? autolinker.link(String(feature.properties['GID_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_0'] !== null ? autolinker.link(String(feature.properties['GID_0']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['COUNTRY'] !== null ? autolinker.link(String(feature.properties['COUNTRY']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_1'] !== null ? autolinker.link(String(feature.properties['GID_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NAME_1'] !== null ? autolinker.link(String(feature.properties['NAME_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NL_NAME_1'] !== null ? autolinker.link(String(feature.properties['NL_NAME_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NAME_2'] !== null ? autolinker.link(String(feature.properties['NAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['VARNAME_2'] !== null ? autolinker.link(String(feature.properties['VARNAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NL_NAME_2'] !== null ? autolinker.link(String(feature.properties['NL_NAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TYPE_2'] !== null ? autolinker.link(String(feature.properties['TYPE_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ENGTYPE_2'] !== null ? autolinker.link(String(feature.properties['ENGTYPE_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['CC_2'] !== null ? autolinker.link(String(feature.properties['CC_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['HASC_2'] !== null ? autolinker.link(String(feature.properties['HASC_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">DATA KESEHATAN_Kab_Kot</th>\
+                        <td class="visible-with-data" id="DATA KESEHATAN_Kab_Kot">' + (feature.properties['DATA KESEHATAN_Kab_Kot'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_Kab_Kot']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['DATA KESEHATAN_TBC'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_TBC']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['DATA KESEHATAN_PNEUMONIA'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_PNEUMONIA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">DATA KESEHATAN_MALARIA</th>\
+                        <td class="visible-with-data" id="DATA KESEHATAN_MALARIA">' + (feature.properties['DATA KESEHATAN_MALARIA'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_MALARIA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_MALARIA_1_0(feature) {
+            if (feature.properties['DATA KESEHATAN_MALARIA'] >= 10.000000 && feature.properties['DATA KESEHATAN_MALARIA'] <= 185.400000 ) {
+                return {
+                pane: 'pane_MALARIA_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,245,240,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_MALARIA'] >= 185.400000 && feature.properties['DATA KESEHATAN_MALARIA'] <= 360.800000 ) {
+                return {
+                pane: 'pane_MALARIA_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(252,190,165,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_MALARIA'] >= 360.800000 && feature.properties['DATA KESEHATAN_MALARIA'] <= 536.200000 ) {
+                return {
+                pane: 'pane_MALARIA_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(251,112,80,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_MALARIA'] >= 536.200000 && feature.properties['DATA KESEHATAN_MALARIA'] <= 711.600000 ) {
+                return {
+                pane: 'pane_MALARIA_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(211,32,32,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_MALARIA'] >= 711.600000 && feature.properties['DATA KESEHATAN_MALARIA'] <= 887.000000 ) {
+                return {
+                pane: 'pane_MALARIA_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(103,0,13,1.0)',
+                interactive: true,
+            }
+            }
+        }
+        map.createPane('pane_MALARIA_1');
+        map.getPane('pane_MALARIA_1').style.zIndex = 401;
+        map.getPane('pane_MALARIA_1').style['mix-blend-mode'] = 'normal';
+        var layer_MALARIA_1 = new L.geoJson(json_MALARIA_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_MALARIA_1',
+            layerName: 'layer_MALARIA_1',
+            pane: 'pane_MALARIA_1',
+            onEachFeature: pop_MALARIA_1,
+            style: style_MALARIA_1_0,
+        });
+        bounds_group.addLayer(layer_MALARIA_1);
+        map.addLayer(layer_MALARIA_1);
+        function pop_PNEUMONIA_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_2'] !== null ? autolinker.link(String(feature.properties['GID_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_0'] !== null ? autolinker.link(String(feature.properties['GID_0']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['COUNTRY'] !== null ? autolinker.link(String(feature.properties['COUNTRY']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_1'] !== null ? autolinker.link(String(feature.properties['GID_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NAME_1'] !== null ? autolinker.link(String(feature.properties['NAME_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NL_NAME_1'] !== null ? autolinker.link(String(feature.properties['NL_NAME_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NAME_2'] !== null ? autolinker.link(String(feature.properties['NAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['VARNAME_2'] !== null ? autolinker.link(String(feature.properties['VARNAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NL_NAME_2'] !== null ? autolinker.link(String(feature.properties['NL_NAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TYPE_2'] !== null ? autolinker.link(String(feature.properties['TYPE_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ENGTYPE_2'] !== null ? autolinker.link(String(feature.properties['ENGTYPE_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['CC_2'] !== null ? autolinker.link(String(feature.properties['CC_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['HASC_2'] !== null ? autolinker.link(String(feature.properties['HASC_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">DATA KESEHATAN_Kab_Kot</th>\
+                        <td class="visible-with-data" id="DATA KESEHATAN_Kab_Kot">' + (feature.properties['DATA KESEHATAN_Kab_Kot'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_Kab_Kot']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['DATA KESEHATAN_TBC'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_TBC']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">DATA KESEHATAN_PNEUMONIA</th>\
+                        <td class="visible-with-data" id="DATA KESEHATAN_PNEUMONIA">' + (feature.properties['DATA KESEHATAN_PNEUMONIA'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_PNEUMONIA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['DATA KESEHATAN_MALARIA'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_MALARIA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PNEUMONIA_2_0(feature) {
+            if (feature.properties['DATA KESEHATAN_PNEUMONIA'] >= 136.000000 && feature.properties['DATA KESEHATAN_PNEUMONIA'] <= 398.400000 ) {
+                return {
+                pane: 'pane_PNEUMONIA_2',
+                opacity: 1,
+                color: 'rgba(56,128,54,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,204,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_PNEUMONIA'] >= 398.400000 && feature.properties['DATA KESEHATAN_PNEUMONIA'] <= 660.800000 ) {
+                return {
+                pane: 'pane_PNEUMONIA_2',
+                opacity: 1,
+                color: 'rgba(56,128,54,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(194,230,153,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_PNEUMONIA'] >= 660.800000 && feature.properties['DATA KESEHATAN_PNEUMONIA'] <= 923.200000 ) {
+                return {
+                pane: 'pane_PNEUMONIA_2',
+                opacity: 1,
+                color: 'rgba(56,128,54,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(120,198,121,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_PNEUMONIA'] >= 923.200000 && feature.properties['DATA KESEHATAN_PNEUMONIA'] <= 1185.600000 ) {
+                return {
+                pane: 'pane_PNEUMONIA_2',
+                opacity: 1,
+                color: 'rgba(56,128,54,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(49,163,84,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_PNEUMONIA'] >= 1185.600000 && feature.properties['DATA KESEHATAN_PNEUMONIA'] <= 1448.000000 ) {
+                return {
+                pane: 'pane_PNEUMONIA_2',
+                opacity: 1,
+                color: 'rgba(56,128,54,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(0,104,55,1.0)',
+                interactive: true,
+            }
+            }
+        }
+        map.createPane('pane_PNEUMONIA_2');
+        map.getPane('pane_PNEUMONIA_2').style.zIndex = 402;
+        map.getPane('pane_PNEUMONIA_2').style['mix-blend-mode'] = 'normal';
+        var layer_PNEUMONIA_2 = new L.geoJson(json_PNEUMONIA_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PNEUMONIA_2',
+            layerName: 'layer_PNEUMONIA_2',
+            pane: 'pane_PNEUMONIA_2',
+            onEachFeature: pop_PNEUMONIA_2,
+            style: style_PNEUMONIA_2_0,
+        });
+        bounds_group.addLayer(layer_PNEUMONIA_2);
+        map.addLayer(layer_PNEUMONIA_2);
+        function pop_TUBERKULOSIS_3(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_2'] !== null ? autolinker.link(String(feature.properties['GID_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_0'] !== null ? autolinker.link(String(feature.properties['GID_0']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['COUNTRY'] !== null ? autolinker.link(String(feature.properties['COUNTRY']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['GID_1'] !== null ? autolinker.link(String(feature.properties['GID_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NAME_1'] !== null ? autolinker.link(String(feature.properties['NAME_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NL_NAME_1'] !== null ? autolinker.link(String(feature.properties['NL_NAME_1']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NAME_2'] !== null ? autolinker.link(String(feature.properties['NAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['VARNAME_2'] !== null ? autolinker.link(String(feature.properties['VARNAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['NL_NAME_2'] !== null ? autolinker.link(String(feature.properties['NL_NAME_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TYPE_2'] !== null ? autolinker.link(String(feature.properties['TYPE_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['ENGTYPE_2'] !== null ? autolinker.link(String(feature.properties['ENGTYPE_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['CC_2'] !== null ? autolinker.link(String(feature.properties['CC_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['HASC_2'] !== null ? autolinker.link(String(feature.properties['HASC_2']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">DATA KESEHATAN_Kab_Kot</th>\
+                        <td class="visible-with-data" id="DATA KESEHATAN_Kab_Kot">' + (feature.properties['DATA KESEHATAN_Kab_Kot'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_Kab_Kot']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">DATA KESEHATAN_TBC</th>\
+                        <td class="visible-with-data" id="DATA KESEHATAN_TBC">' + (feature.properties['DATA KESEHATAN_TBC'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_TBC']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['DATA KESEHATAN_PNEUMONIA'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_PNEUMONIA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['DATA KESEHATAN_MALARIA'] !== null ? autolinker.link(String(feature.properties['DATA KESEHATAN_MALARIA']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TUBERKULOSIS_3_0(feature) {
+            if (feature.properties['DATA KESEHATAN_TBC'] >= 2.000000 && feature.properties['DATA KESEHATAN_TBC'] <= 416.600000 ) {
+                return {
+                pane: 'pane_TUBERKULOSIS_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(247,251,255,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_TBC'] >= 416.600000 && feature.properties['DATA KESEHATAN_TBC'] <= 831.200000 ) {
+                return {
+                pane: 'pane_TUBERKULOSIS_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(200,220,240,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_TBC'] >= 831.200000 && feature.properties['DATA KESEHATAN_TBC'] <= 1245.800000 ) {
+                return {
+                pane: 'pane_TUBERKULOSIS_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(115,178,216,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_TBC'] >= 1245.800000 && feature.properties['DATA KESEHATAN_TBC'] <= 1660.400000 ) {
+                return {
+                pane: 'pane_TUBERKULOSIS_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(41,121,185,1.0)',
+                interactive: true,
+            }
+            }
+            if (feature.properties['DATA KESEHATAN_TBC'] >= 1660.400000 && feature.properties['DATA KESEHATAN_TBC'] <= 2075.000000 ) {
+                return {
+                pane: 'pane_TUBERKULOSIS_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(8,48,107,1.0)',
+                interactive: true,
+            }
+            }
+        }
+        map.createPane('pane_TUBERKULOSIS_3');
+        map.getPane('pane_TUBERKULOSIS_3').style.zIndex = 403;
+        map.getPane('pane_TUBERKULOSIS_3').style['mix-blend-mode'] = 'normal';
+        var layer_TUBERKULOSIS_3 = new L.geoJson(json_TUBERKULOSIS_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TUBERKULOSIS_3',
+            layerName: 'layer_TUBERKULOSIS_3',
+            pane: 'pane_TUBERKULOSIS_3',
+            onEachFeature: pop_TUBERKULOSIS_3,
+            style: style_TUBERKULOSIS_3_0,
+        });
+        bounds_group.addLayer(layer_TUBERKULOSIS_3);
+        map.addLayer(layer_TUBERKULOSIS_3);
+        var overlaysTree = [
+            {label: 'TUBERKULOSIS<br /><table><tr><td style="text-align: center;"><img src="legend/TUBERKULOSIS_3_24170.png" /></td><td>2 - 417</td></tr><tr><td style="text-align: center;"><img src="legend/TUBERKULOSIS_3_4178311.png" /></td><td>417 - 831</td></tr><tr><td style="text-align: center;"><img src="legend/TUBERKULOSIS_3_83112462.png" /></td><td>831 - 1246</td></tr><tr><td style="text-align: center;"><img src="legend/TUBERKULOSIS_3_124616603.png" /></td><td>1246 - 1660</td></tr><tr><td style="text-align: center;"><img src="legend/TUBERKULOSIS_3_166020754.png" /></td><td>1660 - 2075</td></tr></table>', layer: layer_TUBERKULOSIS_3},
+            {label: 'PNEUMONIA<br /><table><tr><td style="text-align: center;"><img src="legend/PNEUMONIA_2_1363980.png" /></td><td>136 - 398</td></tr><tr><td style="text-align: center;"><img src="legend/PNEUMONIA_2_3986611.png" /></td><td>398 - 661</td></tr><tr><td style="text-align: center;"><img src="legend/PNEUMONIA_2_6619232.png" /></td><td>661 - 923</td></tr><tr><td style="text-align: center;"><img src="legend/PNEUMONIA_2_92311863.png" /></td><td>923 - 1186</td></tr><tr><td style="text-align: center;"><img src="legend/PNEUMONIA_2_118614484.png" /></td><td>1186 - 1448</td></tr></table>', layer: layer_PNEUMONIA_2},
+            {label: 'MALARIA<br /><table><tr><td style="text-align: center;"><img src="legend/MALARIA_1_101850.png" /></td><td>10 - 185</td></tr><tr><td style="text-align: center;"><img src="legend/MALARIA_1_1853611.png" /></td><td>185 - 361</td></tr><tr><td style="text-align: center;"><img src="legend/MALARIA_1_3615362.png" /></td><td>361 - 536</td></tr><tr><td style="text-align: center;"><img src="legend/MALARIA_1_5367123.png" /></td><td>536 - 712</td></tr><tr><td style="text-align: center;"><img src="legend/MALARIA_1_7128874.png" /></td><td>712 - 887</td></tr></table>', layer: layer_MALARIA_1},
+            {label: "OpenStreetMap", layer: layer_OpenStreetMap_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        </script>        
+    </body>
+</html>
